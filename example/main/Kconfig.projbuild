@@ -1,0 +1,37 @@
+menu "Neopixel Configuration"
+
+    config WIFI_SSID
+        string "WiFi SSID"
+        default "myssid"
+        help
+            SSID (network name) for the example to connect to.
+
+    config WIFI_PASSWORD
+        depends on !EXAMPLE_WIFI_SSID_PWD_FROM_STDIN
+        string "WiFi Password"
+        default "mypassword"
+        help
+            WiFi password (WPA or WPA2) for the example to use.
+            Can be left blank if the network has no security set.
+
+    config SNTP_TIME_SERVER
+        string "SNTP server name"
+        default "pool.ntp.org"
+        help
+            Hostname of the main SNTP server.
+
+    choice SNTP_TIME_SYNC_METHOD
+        prompt "Time synchronization method"
+        default SNTP_TIME_SYNC_METHOD_IMMED
+        help
+            Time synchronization method.
+
+        config SNTP_TIME_SYNC_METHOD_IMMED
+            bool "update time immediately when received"
+        config SNTP_TIME_SYNC_METHOD_SMOOTH
+            bool "update time with smooth method (adjtime)"
+        config SNTP_TIME_SYNC_METHOD_CUSTOM
+            bool "custom implementation"
+    endchoice
+
+endmenu
