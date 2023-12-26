@@ -6,7 +6,7 @@ Add this component to an esp-idf project with the following command:
 idf.py add-dependency "zorxx/neopixel"
 ```
 
-Source for this project lives at `https://github.com/zorxx/neopixel`
+Source for this project lives at [https://github.com/zorxx/neopixel](https://github.com/zorxx/neopixel)
 
 # Overview
 This library makes use of the ESP32 [I2S](https://en.wikipedia.org/wiki/I%C2%B2S) peripheral bus to
@@ -26,7 +26,7 @@ With this library's double-buffer implementation, pixel buffer updates (via a `n
 Unlike other WS2812b pixel buffer update routines which make use of many expensive bitwise operations to build the pixel buffer for each update, this library utilizes a lookup table implementation to update colors for only the LEDs that have changed since the last update. The lookup table contains pre-computed values, indexed by a color's desired intensity (0-255). This requires only a copy of 9 bytes to change a pixel's RGB value.
 
 # Example Application
-An example esp-idf application is in the `example` directory of this repository.
+An [example esp-idf application](https://github.com/zorxx/neopixel/blob/main/example/main/main.c) is in the `example` directory of this repository.
 Execute `idf.py build` from the `example` directory to build the example.
 
 This application assumes a string of 256 WS2812b LED, with the first LED's

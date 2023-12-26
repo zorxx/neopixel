@@ -1,6 +1,6 @@
 /* \copyright 2023 Zorxx Software. All rights reserved.
  * \license This file is released under the MIT License. See the LICENSE file for details.
- * \brief ESP32 Neopixel Driver
+ * \brief ESP32 Neopixel Driver Library API
  */
 #ifndef _ESP32_NEOPIXEL_H
 #define _ESP32_NEOPIXEL_H
