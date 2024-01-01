@@ -25,6 +25,7 @@ typedef struct sNpContext
    i2s_chan_handle_t i2s;
    uint32_t pixels;
    bool terminate;
+   bool update;
 
    uint8_t *buffer;
    uint32_t bufferSize;
@@ -70,6 +71,7 @@ tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin)
    portMUX_INITIALIZE(&c->lock);
    c->signal = xSemaphoreCreateBinary();
    c->terminate = false;
+   c->update = false;
 
    c->buffer = (uint8_t *)malloc(c->bufferSize);
    memset(c->buffer, 0, c->bufferSize); /* initializes the reset bytes to zero */
@@ -110,6 +112,7 @@ bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCou
       else
          setpixel(c->buffer, p->index, p->rgb);
    }
+   c->update = true;
    taskEXIT_CRITICAL(&c->lock);
    xSemaphoreGive(c->signal);
    return success;
@@ -128,13 +131,13 @@ uint32_t neopixel_GetRefreshRate(tNeopixelContext ctx)
 static void neopixel_task(void *arg)
 {
    tNpContext *c = (tNpContext*) arg;
-   size_t bytesWritten;
    uint8_t *buffer;
+   bool done;
 
-   buffer = (uint8_t *)heap_caps_malloc(c->bufferSize, MALLOC_CAP_DMA);
+   buffer = (uint8_t *)malloc(c->bufferSize);
    if(NULL == buffer)
    {
-      ESP_LOGE(TAG, "[%s] Failed to allocate DMA buffer", __func__);
+      ESP_LOGE(TAG, "[%s] Failed to allocate buffer", __func__);
       return;
    }
 
@@ -148,21 +151,39 @@ static void neopixel_task(void *arg)
          continue;
       }
 
-      /* Make a local copy of the current pixel buffer to be sent to the hardware */
-      taskENTER_CRITICAL(&c->lock);
-      memcpy(buffer, c->buffer, c->bufferSize);
-      taskEXIT_CRITICAL(&c->lock);
-      i2s_channel_enable(c->i2s);
-      i2s_channel_write(c->i2s, buffer, c->bufferSize, &bytesWritten, I2S_TIMEOUT_TICKS);
-      i2s_channel_disable(c->i2s);
+      done = false;
+      while(!done)
+      {
+         taskENTER_CRITICAL(&c->lock);
+         if(c->update)
+         {
+            /* Make a local copy of the current pixel buffer to be sent to the hardware */
+            memcpy(buffer, c->buffer, c->bufferSize);
+            c->update = false;
+         }
+         else
+         {
+            /* Even though the buffer didn't change, send the most recent buffer
+               one more time before blocking to wait for an update. This
+               seems to be necessary based on the behavior of i2s_channel_write */
+            done = true;
+         }
+         taskEXIT_CRITICAL(&c->lock);
+
+         i2s_channel_enable(c->i2s);
+         i2s_channel_write(c->i2s, buffer, c->bufferSize, NULL, I2S_TIMEOUT_TICKS);
+         i2s_channel_disable(c->i2s);
+      }
    }
    ESP_LOGD(TAG, "[%s] Finished", __func__);
 
-   heap_caps_free(buffer);
+   free(buffer);
+
+   /* Destroy context */
    free(c->buffer);
-   i2s_channel_disable(c->i2s);
-   i2s_del_channel(c->i2s);   
+   i2s_del_channel(c->i2s);
    free(c);
+   vTaskDelete(NULL);
 }
 
 static void setpixel(uint8_t *buffer, uint32_t index, uint32_t rgb)
