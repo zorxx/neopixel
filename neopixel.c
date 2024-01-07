@@ -17,21 +17,24 @@
 
 #define TAG "neopixel"
 #define I2S_TIMEOUT_TICKS 1000
+#define NEOPIXEL_TASK_PRIORITY (configMAX_PRIORITIES - 1)
 
 typedef struct sNpContext
 {
    portMUX_TYPE lock;
-   SemaphoreHandle_t signal;
+   SemaphoreHandle_t newData;
+   SemaphoreHandle_t dataSent;
    i2s_chan_handle_t i2s;
    uint32_t pixels;
    bool terminate;
-   bool update;
+   uint32_t bytesSent;
 
    uint8_t *buffer;
    uint32_t bufferSize;
 }  tNpContext;
 
 static void neopixel_task(void *arg);
+static bool i2s_tx_queue_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
 static void setpixel(uint8_t *buffer, uint32_t index, uint32_t rgb);
 
 /* -------------------------------------------------------------------------------------------------------------
@@ -58,6 +61,12 @@ tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin)
          },
       },
    };
+   i2s_event_callbacks_t callbacks = {
+       .on_recv = NULL,
+       .on_recv_q_ovf = NULL,
+       .on_sent = i2s_tx_queue_sent_callback,
+       .on_send_q_ovf = NULL,
+   };
 
    c = (tNpContext *) malloc(sizeof(*c));
    if(NULL == c)
@@ -69,9 +78,10 @@ tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin)
    c->pixels = pixels;
    c->bufferSize = (c->pixels * WS2182B_BYTES_PER_PIXEL) + WS2812B_RESET_BYTES;
    portMUX_INITIALIZE(&c->lock);
-   c->signal = xSemaphoreCreateBinary();
+   c->newData = xSemaphoreCreateBinary();
+   c->dataSent = xSemaphoreCreateBinary();
    c->terminate = false;
-   c->update = false;
+   c->bytesSent = 0;
 
    c->buffer = (uint8_t *)malloc(c->bufferSize);
    memset(c->buffer, 0, c->bufferSize); /* initializes the reset bytes to zero */
@@ -80,8 +90,9 @@ tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin)
 
    i2s_new_channel(&chan_cfg, &c->i2s, NULL);  /* Tx channel only (no Rx) */
    i2s_channel_init_std_mode(c->i2s, &std_cfg);
+   i2s_channel_register_event_callback(c->i2s, &callbacks, c);
 
-   xTaskCreate(&neopixel_task, TAG, 1024, (void *)c, 5, NULL);
+   xTaskCreate(&neopixel_task, TAG, 1024, (void *)c, NEOPIXEL_TASK_PRIORITY, NULL);
 
    return (tNeopixelContext) c;
 }
@@ -92,7 +103,7 @@ void neopixel_Deinit(tNeopixelContext ctx)
    if(NULL == c)
       return;
    c->terminate = true;
-   xSemaphoreGive(c->signal); /* thread does cleanup */
+   xSemaphoreGive(c->newData); /* thread does cleanup */
 }
 
 bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCount)
@@ -112,9 +123,8 @@ bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCou
       else
          setpixel(c->buffer, p->index, p->rgb);
    }
-   c->update = true;
    taskEXIT_CRITICAL(&c->lock);
-   xSemaphoreGive(c->signal);
+   xSemaphoreGive(c->newData);
    return success;
 }
 
@@ -128,11 +138,22 @@ uint32_t neopixel_GetRefreshRate(tNeopixelContext ctx)
  * Helper Functions
  */
 
+static IRAM_ATTR bool i2s_tx_queue_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx)
+{
+   tNpContext *c = (tNpContext*)user_ctx;
+   c->bytesSent += event->size;
+   if(c->bytesSent >= c->bufferSize)
+   {
+      xSemaphoreGive(c->dataSent);
+   }
+   return false;
+}
+
 static void neopixel_task(void *arg)
 {
    tNpContext *c = (tNpContext*) arg;
+   size_t bytesLoaded;
    uint8_t *buffer;
-   bool done;
 
    buffer = (uint8_t *)malloc(c->bufferSize);
    if(NULL == buffer)
@@ -145,35 +166,27 @@ static void neopixel_task(void *arg)
    while(!c->terminate) 
    {
       /* block task, waiting for an update */
-      if(xSemaphoreTake(c->signal, portMAX_DELAY) != pdTRUE)
+      if(xSemaphoreTake(c->newData, portMAX_DELAY) != pdTRUE)
       {
          vTaskDelay(pdMS_TO_TICKS(10)); /* prevent tight loops */
          continue;
       }
 
-      done = false;
-      while(!done)
-      {
-         taskENTER_CRITICAL(&c->lock);
-         if(c->update)
-         {
-            /* Make a local copy of the current pixel buffer to be sent to the hardware */
-            memcpy(buffer, c->buffer, c->bufferSize);
-            c->update = false;
-         }
-         else
-         {
-            /* Even though the buffer didn't change, send the most recent buffer
-               one more time before blocking to wait for an update. This
-               seems to be necessary based on the behavior of i2s_channel_write */
-            done = true;
-         }
-         taskEXIT_CRITICAL(&c->lock);
+      /* Make a local copy of the current pixel buffer to be sent to the hardware */
+      taskENTER_CRITICAL(&c->lock);
+      memcpy(buffer, c->buffer, c->bufferSize);
+      taskEXIT_CRITICAL(&c->lock);
 
-         i2s_channel_enable(c->i2s);
-         i2s_channel_write(c->i2s, buffer, c->bufferSize, NULL, I2S_TIMEOUT_TICKS);
-         i2s_channel_disable(c->i2s);
+      c->bytesSent = 0;
+      i2s_channel_preload_data(c->i2s, buffer, c->bufferSize, &bytesLoaded);
+      i2s_channel_enable(c->i2s);
+      if(bytesLoaded < c->bufferSize)
+      {
+         i2s_channel_write(c->i2s, &buffer[bytesLoaded], c->bufferSize - bytesLoaded,
+            NULL, I2S_TIMEOUT_TICKS);
       }
+      xSemaphoreTake(c->dataSent, portMAX_DELAY); /* Wait for buffer to be transferred to hardware */
+      i2s_channel_disable(c->i2s);
    }
    ESP_LOGD(TAG, "[%s] Finished", __func__);
 
