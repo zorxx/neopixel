@@ -15,23 +15,28 @@
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
-static void test1(void)
+static void test1(uint32_t iterations)
 {
    tNeopixelContext neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
    tNeopixel pixel[] =
    {
        { 0, NP_RGB(50, 0,  0) }, /* red */
        { 0, NP_RGB(0,  50, 0) }, /* green */
+       { 0, NP_RGB(0,  0, 50) }, /* blue */
        { 0, NP_RGB(0,  0,  0) }, /* off */
    };
 
    ESP_LOGI(TAG, "[%s] Starting", __func__);
-   for(int i = 0; i < ARRAY_SIZE(pixel); ++i)
+   for(int iter = 0; iter < iterations; ++iter)
    {
-      neopixel_SetPixel(neopixel, &pixel[i], 1);
-      vTaskDelay(pdMS_TO_TICKS(1000));
+      for(int i = 0; i < ARRAY_SIZE(pixel); ++i)
+      {
+         neopixel_SetPixel(neopixel, &pixel[i], 1);
+         vTaskDelay(pdMS_TO_TICKS(1000));
+      }
    }
    ESP_LOGI(TAG, "[%s] Finished", __func__);
+
    neopixel_Deinit(neopixel);
 }
 
@@ -60,7 +65,7 @@ void app_main(void)
 {
    for(;;)
    {
-      test1();
+      test1(10);
       test2(10);
    }
 }

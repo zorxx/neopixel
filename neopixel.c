@@ -47,7 +47,7 @@ tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin)
    i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
    i2s_std_config_t std_cfg = {
       .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(WS2812B_BITRATE / 16 / 2), /* 16-bit, 2 channels (stereo) per slot */
-      .slot_cfg = I2S_STD_MSB_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+      .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
       .gpio_cfg = {
          .mclk = I2S_GPIO_UNUSED,
          .bclk = I2S_GPIO_UNUSED,
