@@ -8,6 +8,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void *tNeopixelContext;
 
 #define NP_RGB2RED(rgb)   (((rgb) & 0xFF0000UL) >> 16)
@@ -53,5 +57,9 @@ void neopixel_Deinit(tNeopixelContext ctx);
  *  \returns true on success, false on failure
  */ 
 bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCount);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _ESP32_NEOPIXEL_H */
