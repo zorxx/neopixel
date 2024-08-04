@@ -1,4 +1,14 @@
-version: "1.0.5"
-description: "High-performance Neopixel driver (I2S DMA, WS2812B)"
+version: "1.0.7"
+description: "High-performance Neopixel driver"
 url: "https://github.com/zorxx/neopixel"
+repository: "https://github.com/zorxx/neopixel.git"
 license: "MIT"
+tags:
+  - neopixel
+  - led
+  - ws2812b
+  - ws2812
+  - i2s
+  - dma
+examples:
+  - example
