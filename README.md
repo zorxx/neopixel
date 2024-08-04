@@ -25,12 +25,8 @@ With this library's double-buffer implementation, pixel buffer updates (via a `n
 
 Unlike other WS2812b pixel buffer update routines which make use of many expensive bitwise operations to build the pixel buffer for each update, this library utilizes a lookup table implementation to update colors for only the LEDs that have changed since the last update. The lookup table contains pre-computed values, indexed by a color's desired intensity (0-255). This requires only a copy of 9 bytes to change a pixel's RGB value.
 
-# Example Application
-An [example esp-idf application](https://github.com/zorxx/neopixel/blob/main/example/main/main.c) is in the `example` directory of this repository.
-Execute `idf.py build` from the `example` directory to build the example.
-
-This application assumes a string of 256 WS2812b LED, with the first LED's
-DIN connected to an ESP32 GPIO 27.
+# Example Applications
+See the `examples` directory of this repository for example Neopixel applications.
 
 # License
 All files delivered with this library are copyright 2023 Zorxx Software and released under the MIT license. See the `LICENSE` file for details.
