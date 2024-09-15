@@ -102,15 +102,28 @@ void neopixel_Deinit(tNeopixelContext ctx)
    tNpContext *c = (tNpContext*) ctx;
    if(NULL == c)
       return;
+
+   /* Signal the thread to terminate */
    c->terminate = true;
-   xSemaphoreGive(c->newData); /* thread does cleanup */
+   xSemaphoreGive(c->newData);
+
+   for(int retries = 0; c->terminate && retries < 100; ++retries)
+      vTaskDelay(pdMS_TO_TICKS(1));
+   if(c->terminate)
+   {
+      ESP_LOGE(TAG, "[%s] Failed waiting for thread to terminate\n", __func__);
+   }
+
+   i2s_del_channel(c->i2s);
+   free(c->buffer);
+   free(c);
 }
 
 bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCount)
 {
    tNpContext *c = (tNpContext*) ctx;
    bool success = true;
-      
+
    taskENTER_CRITICAL(&c->lock);
    for(uint32_t i = 0; i < pixelCount; ++i)
    {
@@ -131,7 +144,7 @@ bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCou
 uint32_t neopixel_GetRefreshRate(tNeopixelContext ctx)
 {
    tNpContext *c = (tNpContext*) ctx;
-   return WS2812B_BITRATE / (c->bufferSize * 8); 
+   return WS2812B_BITRATE / (c->bufferSize * 8);
 }
 
 /* -------------------------------------------------------------------------------------------------------------
@@ -163,7 +176,7 @@ static void neopixel_task(void *arg)
    }
 
    ESP_LOGD(TAG, "[%s] Started", __func__);
-   while(!c->terminate) 
+   while(!c->terminate)
    {
       /* block task, waiting for an update */
       if(xSemaphoreTake(c->newData, portMAX_DELAY) != pdTRUE)
@@ -171,6 +184,8 @@ static void neopixel_task(void *arg)
          vTaskDelay(pdMS_TO_TICKS(10)); /* prevent tight loops */
          continue;
       }
+      if(c->terminate)
+         continue;
 
       /* Make a local copy of the current pixel buffer to be sent to the hardware */
       taskENTER_CRITICAL(&c->lock);
@@ -191,12 +206,8 @@ static void neopixel_task(void *arg)
    ESP_LOGD(TAG, "[%s] Finished", __func__);
 
    free(buffer);
-
-   /* Destroy context */
-   free(c->buffer);
-   i2s_del_channel(c->i2s);
-   free(c);
-   vTaskDelete(NULL);
+   c->terminate = false;
+   vTaskDelete(NULL); /* Destroy context */
 }
 
 static void setpixel(uint8_t *buffer, uint32_t index, uint32_t rgb)
