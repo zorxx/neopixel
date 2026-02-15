@@ -13,6 +13,7 @@
 #include "driver/i2s_std.h"
 #include "driver/i2s_common.h"
 #include "ws2182b_protocol.h"
+#include "sk6812b_protocol.h"
 #include "neopixel.h"
 
 #define TAG "neopixel"
@@ -27,6 +28,7 @@ typedef struct sNpContext
    i2s_chan_handle_t i2s;
    uint32_t pixels;
    bool terminate;
+   bool rgbw;
    uint32_t bytesSent;
 
    uint8_t *buffer;
@@ -35,7 +37,7 @@ typedef struct sNpContext
 
 static void neopixel_task(void *arg);
 static bool i2s_tx_queue_sent_callback(i2s_chan_handle_t handle, i2s_event_data_t *event, void *user_ctx);
-static void setpixel(uint8_t *buffer, uint32_t index, uint32_t rgb);
+static void setpixel(uint8_t *buffer, uint32_t index, bool rgbw, uint32_t rgb);
 
 /* -------------------------------------------------------------------------------------------------------------
  * Exported Functions
@@ -86,7 +88,66 @@ tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin)
    c->buffer = (uint8_t *)malloc(c->bufferSize);
    memset(c->buffer, 0, c->bufferSize); /* initializes the reset bytes to zero */
    for(int i = 0; i < c->pixels; ++i)
-      setpixel(c->buffer, i, NP_RGB(0, 0, 0));  /* turn off all pixels */
+      setpixel(c->buffer, i, false, NP_RGB(0, 0, 0));  /* turn off all pixels */
+
+   i2s_new_channel(&chan_cfg, &c->i2s, NULL);  /* Tx channel only (no Rx) */
+   i2s_channel_init_std_mode(c->i2s, &std_cfg);
+   i2s_channel_register_event_callback(c->i2s, &callbacks, c);
+
+   xTaskCreate(&neopixel_task, TAG, 1024, (void *)c, NEOPIXEL_TASK_PRIORITY, NULL);
+
+   return (tNeopixelContext) c;
+}
+
+tNeopixelContext *neopixel_Init_RGBW(uint32_t pixels, int dout_pin)
+{
+   tNpContext *c = NULL; 
+   i2s_chan_config_t chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
+   i2s_std_config_t std_cfg = {
+      .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(WS2812B_BITRATE / 16 / 2), /* 16-bit, 2 channels (stereo) per slot */
+      .slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
+      .gpio_cfg = {
+         .mclk = I2S_GPIO_UNUSED,
+         .bclk = I2S_GPIO_UNUSED,
+         .ws =  I2S_GPIO_UNUSED,
+         .dout = dout_pin, 
+         .din = I2S_GPIO_UNUSED,
+         .invert_flags = {
+            .mclk_inv = false,
+            .bclk_inv = false,
+            .ws_inv = false,
+         },
+      },
+   };
+   i2s_event_callbacks_t callbacks = {
+       .on_recv = NULL,
+       .on_recv_q_ovf = NULL,
+       .on_sent = i2s_tx_queue_sent_callback,
+       .on_send_q_ovf = NULL,
+   };
+
+   c = (tNpContext *) malloc(sizeof(*c));
+   if(NULL == c)
+   {
+      ESP_LOGE(TAG, "Failed to allocate context");
+      return NULL;
+   }
+   memset(c, 0, sizeof(*c));
+   c->pixels = pixels;
+   c->rgbw = true;
+   c->bufferSize = (c->pixels * SK6812B_BYTES_PER_PIXEL) + SK6812B_RESET_BYTES;
+   portMUX_INITIALIZE(&c->lock);
+   c->newData = xSemaphoreCreateBinary();
+   c->dataSent = xSemaphoreCreateBinary();
+   c->terminate = false;
+   c->bytesSent = 0;
+
+   c->buffer = (uint8_t *)malloc(c->bufferSize);
+   assert(c->buffer);
+   memset(c->buffer, 0, c->bufferSize); /* initializes the reset bytes to zero */
+   for(int i = 0; i < c->pixels; ++i) {
+      setpixel(c->buffer, i, false, NP_RGBW(0, 0, 0, 0));  /* turn off all pixels */
+   }
 
    i2s_new_channel(&chan_cfg, &c->i2s, NULL);  /* Tx channel only (no Rx) */
    i2s_channel_init_std_mode(c->i2s, &std_cfg);
@@ -128,13 +189,14 @@ bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCou
    for(uint32_t i = 0; i < pixelCount; ++i)
    {
       tNeopixel *p = &pixel[i];
+      assert(p);
       if(p->index >= c->pixels)
       {
          ESP_LOGI(TAG, "Invalid pixel (%" PRIu32 ")", p->index);
          success = false;
       }
       else
-         setpixel(c->buffer, p->index, p->rgb);
+         setpixel(c->buffer, p->index, c->rgbw, p->rgb);
    }
    taskEXIT_CRITICAL(&c->lock);
    xSemaphoreGive(c->newData);
@@ -144,7 +206,10 @@ bool neopixel_SetPixel(tNeopixelContext ctx, tNeopixel *pixel, uint32_t pixelCou
 uint32_t neopixel_GetRefreshRate(tNeopixelContext ctx)
 {
    tNpContext *c = (tNpContext*) ctx;
-   return WS2812B_BITRATE / (c->bufferSize * 8);
+   if (!c->rgbw)
+      return WS2812B_BITRATE / (c->bufferSize * 8);
+   else
+      return SK6812B_BITRATE / (c->bufferSize * 8);
 }
 
 /* -------------------------------------------------------------------------------------------------------------
@@ -210,16 +275,29 @@ static void neopixel_task(void *arg)
    vTaskDelete(NULL); /* Destroy context */
 }
 
-static void setpixel(uint8_t *buffer, uint32_t index, uint32_t rgb)
+static void setpixel(uint8_t *buffer, uint32_t index, bool rgbw, uint32_t rgb)
 {
-   uint32_t offset = index * WS2182B_BYTES_PER_PIXEL;
-   const uint8_t *sequence = ws2812b_color_map[NP_RGB2GREEN(rgb)];
-   for(int i = 0; i < WS2182B_BYTES_PER_PIXEL; ++i, ++offset)
-   {
-      if(i == 3)
-         sequence = ws2812b_color_map[NP_RGB2RED(rgb)];
-      if(i == 6)
-         sequence = ws2812b_color_map[NP_RGB2BLUE(rgb)];
-      buffer[offset ^ 1] = sequence[i % WS2182B_BYTES_PER_COLOR];  /* Fill buffer in 16-bit little-endian format */
+   if (!rgbw) {
+	   uint32_t offset = index * WS2182B_BYTES_PER_PIXEL;
+	   const uint8_t *sequence = ws2812b_color_map[NP_RGB2GREEN(rgb)];
+	   for(int i = 0; i < WS2182B_BYTES_PER_PIXEL; ++i, ++offset)
+	   {
+		  if(i == 3)
+			 sequence = ws2812b_color_map[NP_RGB2RED(rgb)];
+		  if(i == 6)
+			 sequence = ws2812b_color_map[NP_RGB2BLUE(rgb)];
+		  buffer[offset ^ 1] = sequence[i % WS2182B_BYTES_PER_COLOR];  /* Fill buffer in 16-bit little-endian format */
+	   }
+   } else {
+	   uint32_t offset = index * SK6812B_BYTES_PER_PIXEL;
+	   const uint8_t *sequence = sk6812b_color_map[NP_RGB2GREEN(rgb)];
+	   for(int i = 0; i < SK6812B_BYTES_PER_PIXEL; ++i, ++offset)
+	   {
+		  if(i == 3)
+			 sequence = sk6812b_color_map[NP_RGB2RED(rgb)];
+		  if(i == 6)
+			 sequence = sk6812b_color_map[NP_RGB2BLUE(rgb)];
+		  buffer[offset ^ 1] = sequence[i % SK6812B_BYTES_PER_COLOR];  /* Fill buffer in 16-bit little-endian format */
+	   }
    }
 }

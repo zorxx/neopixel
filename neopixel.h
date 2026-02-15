@@ -20,6 +20,10 @@ typedef void *tNeopixelContext;
 #define NP_RGB(r, g, b)   ( ((uint32_t)(r) & 0xFF) << 16  \
                        | ((uint32_t)(g) & 0xFF) << 8   \
                        | ((uint32_t)(b) & 0xFF) )
+#define NP_RGBW(r, g, b, w)    ( ((uint32_t)(r) & 0xFF) << 24 \
+                       | ((uint32_t)(g) & 0xFF) << 16   \
+                       | ((uint32_t)(b) & 0xFF) << 8  \
+                       | ((uint32_t)(w) & 0xFF) )
 
 typedef struct sNeopixel 
 {
@@ -34,6 +38,14 @@ typedef struct sNeopixel
   *          to subsequent neopixel function calls
   */
 tNeopixelContext *neopixel_Init(uint32_t pixels, int dout_pin);
+
+/*! \brief Create a neopixel context
+  * \param pixels Number of pixels
+  * \param dout_pin Physical pin to send neopixel data (e.g. GPIO_NUM_27) 
+  * \returns Pointer to neopixel context, used as the first parameter
+  *          to subsequent neopixel function calls
+  */
+tNeopixelContext *neopixel_Init_RGBW(uint32_t pixels, int dout_pin);
 
 /*! \brief Get minimum number of ticks between neopixel_SetPixel calls
  *  \param ctx Neopixel context received from successful neopixel_Init calls
