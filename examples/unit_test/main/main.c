@@ -11,8 +11,7 @@
 #define TAG "neopixel_test"
 #define PIXEL_COUNT  256
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-   //#define NEOPIXEL_PIN GPIO_NUM_48
-   #define NEOPIXEL_PIN GPIO_NUM_14
+   #define NEOPIXEL_PIN GPIO_NUM_48
 #elif defined(CONFIG_IDF_TARGET_ESP32C6)
    #define NEOPIXEL_PIN GPIO_NUM_8
 #else
