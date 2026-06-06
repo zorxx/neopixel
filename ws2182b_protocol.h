@@ -1,6 +1,6 @@
-/* \copyright 2023 Zorxx Software. All rights reserved.
+/* \copyright 2023-2026 Zorxx Software. All rights reserved.
  * \license This file is released under the MIT License. See the LICENSE file for details.
- * \brief WS2812 protocol 
+ * \brief WS2812 protocol
  */
 #ifndef _WS2812B_PROTOCOL_H
 #define _WS2812B_PROTOCOL_H
@@ -27,7 +27,7 @@
    to its corresponding bitstream. A single pixel command is comprised of three
    of these three-byte commands to represent a full green/red/blue value.
 
-   These bits never change: 
+   These bits never change:
    0x00 -> 1001 0010 0100 1001 0010 0100 -> 0x924924
 
    The following 8 bits (set to 1 below) change based on the desired value

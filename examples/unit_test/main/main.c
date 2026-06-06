@@ -1,4 +1,4 @@
-/* \copyright 2023 Zorxx Software. All rights reserved.
+/* \copyright 2023-2026 Zorxx Software. All rights reserved.
  * \license This file is released under the MIT License. See the LICENSE file for details.
  * \brief ESP32 Neopixel Driver Library Example Application
  */
@@ -11,7 +11,8 @@
 #define TAG "neopixel_test"
 #define PIXEL_COUNT  256
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
-   #define NEOPIXEL_PIN GPIO_NUM_48
+   //#define NEOPIXEL_PIN GPIO_NUM_48
+   #define NEOPIXEL_PIN GPIO_NUM_14
 #elif defined(CONFIG_IDF_TARGET_ESP32C6)
    #define NEOPIXEL_PIN GPIO_NUM_8
 #else
@@ -25,7 +26,7 @@
 
 static bool test1(uint32_t iterations)
 {
-   tNeopixelContext neopixel = neopixel_Init(PIXEL_COUNT, NEOPIXEL_PIN);
+   tNeopixelContext neopixel = neopixel_Initialize(PIXEL_COUNT, NEOPIXEL_PIN, NEOPIXEL_MODE_WS2812B);
    tNeopixel pixel[] =
    {
        { 0, NP_RGB(50, 0,  0) }, /* red */
