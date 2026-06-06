@@ -1,33 +1,29 @@
-/* \copyright 2023 Zorxx Software. All rights reserved.
+/* \copyright 2026 Zorxx Software.
  * \license This file is released under the MIT License. See the LICENSE file for details.
- * \brief WS2812 protocol 
+ * \brief SK6812 protocol
  */
-#ifndef _WS2812B_PROTOCOL_H
-#define _WS2812B_PROTOCOL_H
+#ifndef _SK6812B_PROTOCOL_H
+#define _SK6812B_PROTOCOL_H
 
 #include <stdint.h>
 
-/* Each WS2812B pixel requires 24 data bits in the format:
-   (G[7 downto 0],R[7 downto 0],B[7 downto 0])
- */
+/* It takes 3 serialized bits to send one data bit to a SK6812B */
+#define SK6812B_ZERO 0b100
+#define SK6812B_ONE  0b110
 
-/* It takes 3 serialized bits to send one data bit to a WS2812B */
-#define WS2812B_ZERO 0b100
-#define WS2812B_ONE  0b110
+#define SK6812B_BYTES_PER_COLOR  3
+#define SK6812B_COLORS_PER_PIXEL 4
+#define SK6812B_BYTES_PER_PIXEL  (SK6812B_BYTES_PER_COLOR * SK6812B_COLORS_PER_PIXEL)
 
-#define WS2182B_BYTES_PER_COLOR  3
-#define WS2182B_COLORS_PER_PIXEL 3
-#define WS2182B_BYTES_PER_PIXEL  (WS2182B_BYTES_PER_COLOR * WS2182B_COLORS_PER_PIXEL)
-
-#define WS2812B_BITRATE      2600000UL   /* 2.6 Mbps = 385 ns/bit */
-#define WS2812B_RESET_BITS   ((50 * WS2812B_BITRATE / 1000000UL) + 1) /* 50 uS of zero bits sent to end each refresh */
-#define WS2812B_RESET_BYTES  ((WS2812B_RESET_BITS + 7) / 8) /* number of zero bytes to send at the end of each refresh */
+#define SK6812B_BITRATE      2600000UL   /* 2.6 Mbps = 385 ns/bit */
+#define SK6812B_RESET_BITS   ((50 * SK6812B_BITRATE / 1000000UL) + 1) /* 50 uS of zero bits sent to end each refresh */
+#define SK6812B_RESET_BYTES  ((SK6812B_RESET_BITS + 7) / 8) /* number of zero bytes to send at the end of each refresh */
 
 /* The following is a lookup table to convert a color value (one byte)
    to its corresponding bitstream. A single pixel command is comprised of three
    of these three-byte commands to represent a full green/red/blue value.
 
-   These bits never change: 
+   These bits never change:
    0x00 -> 1001 0010 0100 1001 0010 0100 -> 0x924924
 
    The following 8 bits (set to 1 below) change based on the desired value
@@ -37,10 +33,10 @@
 
    See tablegen/tablegen.c
  */
-typedef uint8_t ws2812b_pixel[WS2182B_BYTES_PER_COLOR];
-const ws2812b_pixel ws2812b_color_map[256] =
+typedef uint8_t sk6812b_pixel[SK6812B_BYTES_PER_COLOR];
+const sk6812b_pixel sk6812b_color_map[256] =
 {
-  { 0x92, 0x49, 0x24 }, /* 0 */
+   { 0x92, 0x49, 0x24 }, /* 0 */
    { 0x92, 0x49, 0x26 }, /* 1 */
    { 0x92, 0x49, 0x34 }, /* 2 */
    { 0x92, 0x49, 0x36 }, /* 3 */
@@ -298,4 +294,4 @@ const ws2812b_pixel ws2812b_color_map[256] =
    { 0xdb, 0x6d, 0xb6 }, /* 255 */
 };
 
-#endif /* _WS2812B_PROTOCOL_H */
+#endif /* _SK6812B_PROTOCOL_H */
