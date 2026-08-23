@@ -3,6 +3,6 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := neopixel 
+PROJECT_NAME := neopixel
 
 include $(IDF_PATH)/make/project.mk

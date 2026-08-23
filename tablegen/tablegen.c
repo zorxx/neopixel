@@ -1,8 +1,8 @@
-/* \copyright 2023 Zorxx Software. All rights reserved.
- * \license This file is released under the MIT License. See the LICENSE file for details.
- * \brief ESP32 Neopixel Driver Lookup Table Generator Application
- * 
- * This application can be built under Linux with gcc via the following command:
+/*! \copyright 2023-2026 Zorxx Software. All rights reserved.
+ *  \brief ESP32 Neopixel Driver Lookup Table Generator Application
+ * SPDX-License-Identifier: MIT
+ *
+ * This application can be built with gcc via the following command:
  *   gcc -o tablegen tablegen.c
  */
 #include <stdio.h>
@@ -25,5 +25,5 @@ int main(void)
       uint8_t *b = (uint8_t *)&c;
       P("   { 0x%02x, 0x%02x, 0x%02x }, /* %u */\n", b[0], b[1], b[2], i);
    }
-   return 0; 
+   return 0;
 }

@@ -1,6 +1,6 @@
-/* \copyright 2023-2026 Zorxx Software. All rights reserved.
- * \license This file is released under the MIT License. See the LICENSE file for details.
- * \brief ESP32 Neopixel Driver Library Example Application
+/*! \copyright 2023-2026 Zorxx Software. All rights reserved.
+ *  \brief ESP32 Neopixel Driver Library Example Application
+ * SPDX-License-Identifier: MIT
  */
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>

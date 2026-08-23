@@ -1,6 +1,6 @@
-/* \copyright 2026 Zorxx Software.
- * \license This file is released under the MIT License. See the LICENSE file for details.
- * \brief SK6812 protocol
+/*! \copyright 2026 Zorxx Software.
+ *  \brief SK6812 protocol
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _SK6812B_PROTOCOL_H
 #define _SK6812B_PROTOCOL_H
